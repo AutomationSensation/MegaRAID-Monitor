@@ -1,0 +1,54 @@
+$StorCLILocation = 'C:\Program Files (x86)\MegaRAID Storage Manager\StorCli64.exe'
+$StorCliCommand = "/c0 /vall show j"
+
+# Execute the command and capture the output
+$ExecuteStoreCLI = & $StorCLILocation $StorCliCommand | Out-String
+$ArrayStorCLI = $ExecuteStoreCLI | ConvertFrom-Json
+
+$errorCount = 0  # Counter for arrays not in optimal state.
+
+# Initialize empty strings for concatenated values
+$Names = ""
+$Types = ""
+$Sizes = ""
+
+foreach ($VirtualDrive in $ArrayStorCLI.Controllers.'Response Data'.'Virtual Drives') {
+    # If the name is blank, use DG/VD as the default name.
+    $Name = if ($VirtualDrive.Name) { $VirtualDrive.Name } else { $VirtualDrive.'DG/VD' }
+    
+    $Type  = $VirtualDrive.TYPE
+    $State = $VirtualDrive.State
+    $Size  = $VirtualDrive.Size
+
+    # Concatenate values with a comma separator
+    $Names += $Name + ", "
+    $Types += $Type + ", "
+    $Sizes += $Size + ", "
+
+    # Check state for monitoring
+    if ($State -ne "Optl") {
+        Write-Output "WARNING: Array '$Name' State: $State"
+        $errorCount++  # Increment the error counter.
+    }
+}
+
+# Removing the trailing comma and space from concatenated values
+$Names = $Names.TrimEnd(", ")
+$Types = $Types.TrimEnd(", ")
+$Sizes = $Sizes.TrimEnd(", ")
+
+# Outputting the concatenated results
+Write-Output "Name: $Names"
+Write-Output "Type: $Types"
+Write-Output "Size: $Sizes"
+
+# Exit code for monitoring
+$totalArrays = $ArrayStorCLI.Controllers.'Response Data'.'Virtual Drives'.Count
+Write-Output "Total arrays found: $totalArrays"
+if ($errorCount -gt 0) {
+    Write-Output "Total arrays not optimal: $errorCount"
+    exit 1  # There were errors.
+} else {
+    Write-Output "All arrays are optimal."
+    exit 0  # Everything is optimal.
+}
